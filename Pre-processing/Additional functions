@@ -1,0 +1,142 @@
+#Bestand met alle functies voor data prep & clean
+
+#Pakketten installeren en libraries laden
+LaadPakketten <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])] 
+  if (length(new.pkg))  
+    install.packages(new.pkg, dependencies = TRUE) 
+  sapply(pkg, require, character.only = TRUE) 
+} 
+
+
+#Grafieken van verdelingen
+StatVerdelingNumData <- function(df){
+  df %>% 
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(x=value)) +
+  geom_density(alpha = 0.2, color = "forestgreen", fill = "forestgreen")  +
+  facet_wrap(~key, scales = "free") +
+  theme_classic() +
+  ggtitle("Verdeling continue variabelen")
+}
+
+#Specifieke numerieke var verdelingen
+StatVerdelingSpecNumData <- function(df, x){
+  df %>% 
+    ggplot(aes(x =  x)) +
+    geom_histogram(color = "darkcyan", fill = "darkcyan", binwidth = 8, alpha = 0.4) +
+    stat_bin(aes(y = ..count.., label = ..count..), binwidth = 8, geom = "text", vjust = -0.5) +
+    geom_vline(aes(xintercept = mean(leeftijd)), color = "red", linetype = "solid", size = 2, alpha = 0.25) +
+    labs(title="Verdeling variabele", x= "Leeftijd", y = "Aantal") +
+    theme_classic()
+}
+
+#beschrijvende tabel numerieke variabelen
+StatDescript <- function(df){
+  descr_numtab <- df %>% 
+    select_if(is.numeric)
+  
+  gemiddelde <- as.data.frame(round(sapply(descr_numtab, mean, na.rm = TRUE),1))
+  mediaan <- as.data.frame(round(sapply(descr_numtab, median, na.rm = TRUE),1))
+  minimum <- as.data.frame(round(sapply(descr_numtab, min, na.rm = TRUE),1))
+  maximum <- as.data.frame(round(sapply(descr_numtab, max, na.rm = TRUE),1))
+  sd <- as.data.frame(round(sapply(descr_numtab, sd, na.rm = TRUE),1))
+  
+  desc_tabel <- cbind(minimum, maximum, mediaan, gemiddelde, sd)
+  colnames(desc_tabel) <- c("Minimum", "Maximum", "Mediaan", "Gemiddelde", "SD")
+  
+  formattable(desc_tabel,
+              align = c("c", "c", "c", "c", "c"))
+}
+
+#Uitbijter hexplot
+
+OutlierPlot <- function(df, x, y) {
+  hex_df <- ggplot(df, aes_string(x, y))
+  hexplot <- hex_df + 
+    geom_hex(bins = 30) +
+    scale_fill_viridis(option = "plasma") + 
+    theme_classic() +
+    ggtitle("Concentratie van data") +
+    xlab(x) +
+    ylab(y) +
+    labs(fill = "Dichtheid")
+  ggplotly(hexplot)
+}
+
+#Uitbijter tabel
+
+OutlierTabel <- function(df){
+  uitbijters <- df %>%
+    dplyr::select_if(is.numeric)
+  
+  max_outlier <- outlier(uitbijters)
+  z_score_max <- round(scores(max_outlier),3)
+  chi2_max <- round(scores(max_outlier, type = "chisq"),3)
+  
+  min_outlier <- outlier(uitbijters,opposite=TRUE)
+  z_score_min <- round(scores(min_outlier),3)
+  chi2_min <- round(scores(min_outlier, type = "chisq"),3)
+  
+  tabel_uitbijters <- as.data.frame(cbind(min_outlier,z_score_min, chi2_min,
+                                          max_outlier,z_score_max, chi2_max))
+  colnames(tabel_uitbijters) <- c("min_outlier", "min_zscore", "min_chi2", 
+                                  "max_outlier", "max_zscore", "max_chi2")
+  formattable(tabel_uitbijters,
+              allign = c("c", "c", "c","c", "c", "c"))
+}
+
+
+#Uitbijter verwijderaar
+#Handleiding: https://www.r-bloggers.com/identify-describe-plot-and-remove-the-outliers-from-the-dataset/
+
+OutlierVerwijder <- function(df, x) {
+  x_name <- eval(substitute(x),eval(df))
+  na1 <- sum(is.na(x_name))
+  m1 <- mean(x_name, na.rm = T)
+  par(mfrow=c(2, 2), oma=c(0,0,3,0))
+  boxplot(x_name, main="Met outliers")
+  hist(x_name, main="Met outliers", xlab=NA, ylab=NA)
+  outlier <- boxplot.stats(x_name)$out
+  mo <- mean(outlier)
+  x_name <- ifelse(x_name %in% outlier, NA, x_name)
+  boxplot(x_name, main="Zonder outliers")
+  hist(x_name, main="Zonder outliers", xlab=NA, ylab=NA)
+  title("Outlier analyse", outer=TRUE)
+  na2 <- sum(is.na(x_name))
+  cat("Aantal outliers geidentificeerd:", na2 - na1, "n")
+  cat("Proportie (%) van outliers:", round((na2 - na1) / sum(!is.na(x_name))*100, 1), "n")
+  cat("Gemiddelde van de outliers:", round(mo, 2), "n")
+  m2 <- mean(x_name, na.rm = T)
+  cat("Gemiddelde zonder verwijderen outliers:", round(m1, 2), "n")
+  cat("Gemiddelde bij verwijderen outliers:", round(m2, 2), "n")
+  response <- readline(prompt="Do you want to remove outliers and to replace with NA? [yes/no]: ")
+  if(response == "y" | response == "yes"){
+    df[as.character(substitute(x))] <- invisible(x_name)
+    assign(as.character(as.list(match.call())$df), df, envir = .GlobalEnv)
+    cat("Outliers successfully removed", "n")
+    return(invisible(df))
+  } else{
+    cat("Nothing changed", "n")
+    return(invisible(x_name))
+  }
+}
+
+#Uitbijterstats
+
+StatOutliers <- function(df){
+  df_num <- df %>% 
+    select_if(is.numeric)
+  
+  outl_mean <- as.data.frame(round(sapply(df_num, mean, na.rm = TRUE),1))
+  outl_med <- as.data.frame(round(sapply(df_num, median, na.rm = TRUE),1))
+  outl_min <- as.data.frame(round(sapply(df_num, min, na.rm = TRUE),1))
+  outl_max <- as.data.frame(round(sapply(df_num, max, na.rm = TRUE),1))
+  
+  outl_tabel <- cbind(outl_mean, outl_med, outl_min, outl_max)
+  
+  colnames(outl_tabel) <- c("mean", "median", "min", "max")
+  formattable(outl_tabel,
+              allign = c("c", "c", "c", "c"))
+}
