@@ -8,7 +8,6 @@ input_x <- as.matrix(select(df_train, -outcome))
 input_y <- df_train$outcome
 
 #Search for best hyperparameters with CV grid-search tuning
-
 set.seed(84)
 grid_default <- expand.grid(
   nrounds = 100,
@@ -37,6 +36,7 @@ xgb_base <- caret::train(
   verbose = TRUE
 )
 
+#Optimal amount of nrounds and eta
 nrounds <- 1000
 
 set.seed(84)
@@ -70,6 +70,7 @@ xgb_tune <- caret::train(
 
 xgb_tune$bestTune
 
+#Optimal max depth and minimum child weight
 set.seed(84)
 tune_grid2 <- expand.grid(
   nrounds = seq(from = 50, to = nrounds, by = 50),
@@ -93,6 +94,7 @@ xgb_tune2 <- caret::train(
   verbose = TRUE
 )
 
+#Optimal column and row sampling
 set.seed(84)
 tune_grid3 <- expand.grid(
   nrounds = seq(from = 50, to = nrounds, by = 50),
@@ -113,6 +115,7 @@ xgb_tune3 <- caret::train(
   verbose = TRUE
 )
 
+#Optimal gamma
 set.seed(84)
 tune_grid4 <- expand.grid(
   nrounds = seq(from = 50, to = nrounds, by = 50),
@@ -134,6 +137,7 @@ xgb_tune4 <- caret::train(
   verbose = TRUE
 )
 
+#Optimal learning rate
 set.seed(84)
 tune_grid5 <- expand.grid(
   nrounds = seq(from = 100, to = 10000, by = 100),
@@ -155,6 +159,7 @@ xgb_tune5 <- caret::train(
   verbose = TRUE
 )
 
+#Combine all optimized hyperparameter settings
 set.seed(84)
 final_grid <- expand.grid(
   nrounds = xgb_tune5$bestTune$nrounds,
@@ -175,6 +180,7 @@ xgb_model <- caret::train(
   method = "xgbTree",
   verbose = TRUE)
 
+#Test performance of final model
 set.seed(84)
 pred.beslisboom <- predict(xgb_model, newdata = df_test, type = "raw")
 confmat.beslisboom <-confusionMatrix(as.factor(pred.beslisboom), as.factor(df_test$outcome))
@@ -282,10 +288,10 @@ df_test_oknee <- df_test %>%
          surg_scrotal == 0 &
          surg_transurethral_bladder == 0)
 
-beste_model <- function(train, test){
+best_model <- function(train, test){
   
-  input_x <- as.matrix(select(train, -unplanned_readmission))
-  input_y <- train$unplanned_readmission
+  input_x <- as.matrix(select(train, -outcome))
+  input_y <- train$outcome
 
   set.seed(84)
   xgb_model <- caret::train(
@@ -299,7 +305,7 @@ beste_model <- function(train, test){
   set.seed(84)
   preds <- predict(xgb_model, type = "prob", newdata = test)[,2]
   pred.xgboost <- as.numeric(round(preds,2))
-  rocobject <- roc(test$unplanned_readmission, pred.xgboost)
+  rocobject <- roc(test$outcome, pred.xgboost)
   
   return(rocobject)
 
@@ -309,17 +315,17 @@ beste_model <- function(train, test){
 roc_finalmodel <- xgboost.rocobj
 
 #SEX
-roc_male <- beste_model(df_train_male, df_test_male)
-roc_female <- beste_model(df_train_female, df_test_female)
+roc_male <- best_model(df_train_male, df_test_male)
+roc_female <- best_model(df_train_female, df_test_female)
 
 #Test for signficant statistical difference compared to the final model
 roc.test(xgboost.rocobj, roc_male)
 roc.test(xgboost.rocobj, roc_female)
 
 #AGE groups
-roc_leeftijd_18_45 <- beste_model(df_train_leeftijd_18_45, df_test_leeftijd_18_45)
-roc_leeftijd_45_65 <- beste_model(df_train_leeftijd_45_65, df_test_leeftijd_45_65)
-roc_leeftijd_65 <- beste_model(df_train_leeftijd_65, df_test_leeftijd_65)
+roc_leeftijd_18_45 <- best_model(df_train_leeftijd_18_45, df_test_leeftijd_18_45)
+roc_leeftijd_45_65 <- best_model(df_train_leeftijd_45_65, df_test_leeftijd_45_65)
+roc_leeftijd_65 <- best_model(df_train_leeftijd_65, df_test_leeftijd_65)
 
 #Test for signficant statistical difference compared to the final model
 roc.test(xgboost.rocobj, roc_leeftijd_18_45)
@@ -327,8 +333,8 @@ roc.test(xgboost.rocobj, roc_leeftijd_45_65)
 roc.test(xgboost.rocobj, roc_leeftijd_65)
 
 #OPERATIE GEHAD JA/NE
-roc_operatie_ja <- beste_model(df_train_okja, df_test_okja)
-roc_operatie_nee <- beste_model(df_train_oknee, df_test_oknee)
+roc_operatie_ja <- best_model(df_train_okja, df_test_okja)
+roc_operatie_nee <- best_model(df_train_oknee, df_test_oknee)
 
 #Test for signficant statistical difference compared to the final model
 (xgboost.rocobj, roc_operatie_ja)
