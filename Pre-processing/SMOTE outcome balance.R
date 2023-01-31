@@ -47,4 +47,4 @@ smote_df %>%
             funs(round(., 1))) 
   
 #Save SMOTED data for training
-write.csv(df_70smote_df_30, "train_data.csv",row.names=FALSE)
+write.csv(smote_df, "train_data.csv",row.names=FALSE)
